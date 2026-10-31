@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A countdown that skips weekends, holidays and breaks — synced to the cloud.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Countdown">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b0f1a">
+<title>Countdown</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏳</text></svg>">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="brand-mark">⏳</span><span>Countdown</span></div>
+  <nav id="tabs" class="tabs"></nav>
+  <div class="topbar-actions">
+    <button id="btnCloud" class="btn ghost cloud" title="Account &amp; sync" aria-label="Account and sync" data-state="off"><span class="cloud-ic">☁︎</span><i class="cloud-dot"></i></button>
+    <button id="btnNew"  class="btn ghost" title="New countdown" aria-label="New countdown">＋</button>
+    <button id="btnEdit" class="btn ghost" title="Edit this countdown" aria-label="Edit this countdown">⚙︎</button>
+    <button id="btnMenu" class="btn ghost" title="More" aria-label="More">⋯</button>
+  </div>
+</header>
+
+<div id="syncNotice" class="notice" hidden>
+  <span>Saved on this device only — clearing cookies wipes it.</span>
+  <button id="btnNoticeSignIn" class="btn tiny primary">Sign in to back up</button>
+</div>
+
+<main id="stage" class="stage"></main>
+
+<!-- ───────────── editor ───────────── -->
+<div id="editor" class="sheet" hidden>
+  <div class="sheet-panel" role="dialog" aria-modal="true" aria-label="Edit countdown">
+    <div class="sheet-head">
+      <h2 id="editorTitle">Edit countdown</h2>
+      <button id="btnClose" class="btn ghost" aria-label="Close">✕</button>
+    </div>
+
+    <div class="sheet-body">
+      <section class="field-grid">
+        <label class="field span2">
+          <span>Name</span>
+          <input id="fName" type="text" placeholder="Last Day of School">
+        </label>
+        <label class="field">
+          <span>Icon</span>
+          <input id="fEmoji" type="text" maxlength="4" placeholder="🎒">
+        </label>
+        <label class="field">
+          <span>Accent</span>
+          <input id="fAccent" type="color" value="#ffb703">
+        </label>
+        <label class="field span2">
+          <span>Note <em>(optional)</em></span>
+          <input id="fSubtitle" type="text" placeholder="SCUSD 2026–27">
+        </label>
+        <label class="field span2">
+          <span>Counts down to</span>
+          <input id="fTarget" type="datetime-local">
+        </label>
+        <label class="field span2">
+          <span>Started <em>(for the progress bar)</em></span>
+          <input id="fStart" type="datetime-local">
+        </label>
+      </section>
+
+      <section class="block">
+        <h3>Extra units</h3>
+        <p class="hint">Days, hours, minutes and seconds are always shown. Add bigger units here.</p>
+        <div id="unitToggles" class="chips">
+          <label class="chip"><input type="checkbox" data-unit="years"><span>Years</span></label>
+          <label class="chip"><input type="checkbox" data-unit="months"><span>Months</span></label>
+          <label class="chip"><input type="checkbox" data-unit="weeks"><span>Weeks</span></label>
+        </div>
+      </section>
+
+      <section class="block">
+        <h3>Skip these weekdays</h3>
+        <p class="hint">Skipped days are removed from the counted total — the full total keeps them.</p>
+        <div id="weekdayToggles" class="chips"></div>
+      </section>
+
+      <section class="block">
+        <h3>Skip these dates</h3>
+        <p class="hint">Holidays, breaks, anything else. Leave the end date empty for a single day.</p>
+        <div id="rangeList" class="range-list"></div>
+        <button id="btnAddRange" class="btn subtle wide">＋ Add dates</button>
+      </section>
+    </div>
+
+    <div class="sheet-foot">
+      <button id="btnDelete" class="btn danger">Delete</button>
+      <div class="grow"></div>
+      <button id="btnCancel" class="btn subtle">Cancel</button>
+      <button id="btnSave" class="btn primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────── account / cloud sync ───────────── -->
+<div id="account" class="sheet" hidden>
+  <div class="sheet-panel narrow" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
+    <div class="sheet-head">
+      <h2 id="accountTitle">Cloud sync</h2>
+      <button id="btnAccountClose" class="btn ghost" aria-label="Close">✕</button>
+    </div>
+    <div class="sheet-body">
+
+      <!-- Supabase not configured -->
+      <section id="acOff" class="block" hidden>
+        <h3>Not set up yet</h3>
+        <p class="hint">Cloud sync needs a Supabase project. Put its URL and anon key in <code>config.js</code> and redeploy. Until then everything is stored on this device only — use <b>Export</b> in the ⋯ menu as a backup.</p>
+      </section>
+
+      <!-- signed out -->
+      <form id="acAuth" class="block auth" hidden autocomplete="on">
+        <p class="hint">Sign in and your countdowns are stored in the cloud. Clear cookies, switch phones — log back in and they're all there.</p>
+        <label class="field">
+          <span>Email</span>
+          <input id="acEmail" type="email" autocomplete="email" inputmode="email" required>
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input id="acPassword" type="password" autocomplete="current-password" minlength="6" required>
+        </label>
+        <div class="auth-actions">
+          <button id="btnSignIn" type="submit" class="btn primary">Sign in</button>
+          <button id="btnSignUp" type="button" class="btn subtle">Create account</button>
+        </div>
+        <button id="btnForgot" type="button" class="link">Forgot password?</button>
+      </form>
+
+      <!-- password recovery (after clicking the email link) -->
+      <form id="acRecover" class="block auth" hidden>
+        <h3>Set a new password</h3>
+        <label class="field">
+          <span>New password</span>
+          <input id="acNewPassword" type="password" autocomplete="new-password" minlength="6" required>
+        </label>
+        <button type="submit" class="btn primary">Save password</button>
+      </form>
+
+      <!-- signed in -->
+      <section id="acIn" class="block" hidden>
+        <div class="who">
+          <div class="who-ic">☁︎</div>
+          <div>
+            <b id="acWho"></b>
+            <div id="acStatus" class="hint tight"></div>
+          </div>
+        </div>
+        <div class="auth-actions">
+          <button id="btnSyncNow" class="btn subtle">Sync now</button>
+          <button id="btnSignOut" class="btn danger">Sign out</button>
+        </div>
+        <p class="hint">Signing out keeps a copy on this device. Your cloud copy stays put.</p>
+      </section>
+
+      <p id="acMsg" class="msg" role="status" hidden></p>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────── overflow menu ───────────── -->
+<div id="menu" class="menu" hidden>
+  <button data-act="account">Account &amp; cloud sync…</button>
+  <button data-act="duplicate">Duplicate countdown</button>
+  <button data-act="export">Export all as JSON…</button>
+  <button data-act="import">Import JSON…</button>
+  <button data-act="reset">Restore school preset</button>
+</div>
+<input id="fileImport" type="file" accept="application/json,.json" hidden>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="presets.js"></script>
+<script src="app.js"></script>
+<script src="sync.js"></script>
+<script>
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+</script>
+</body>
+</html>
