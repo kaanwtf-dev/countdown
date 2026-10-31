@@ -1,5 +1,5 @@
 -- Countdown cloud sync: one JSON row per user.
--- Run once in Supabase → SQL Editor.
+-- Lives in the shared "Task Conquest" Supabase project; same logins work for both apps.
 
 create table if not exists public.countdown_state (
   user_id    uuid primary key default auth.uid() references auth.users(id) on delete cascade,
@@ -9,8 +9,7 @@ create table if not exists public.countdown_state (
 
 alter table public.countdown_state enable row level security;
 
-drop policy if exists "own row only" on public.countdown_state;
 create policy "own row only" on public.countdown_state
   for all to authenticated
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
